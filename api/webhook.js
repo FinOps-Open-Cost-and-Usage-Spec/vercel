@@ -21,8 +21,10 @@ export default async function handler(req, res) {
 
   // 3. Extract Field Context
   const fieldName = changes?.field_value?.field_name || "Unknown Field";
-  if (fieldName === "Status") {
-    return res.status(200).send('Action ignored: Status field excluded.');
+  
+  // Add "Title" to this check to suppress the ghost messages
+  if (fieldName === "Status" || fieldName === "Title") {
+    return res.status(200).send(`Action ignored: ${fieldName} field excluded.`);
   }
 
   // 4. Detect "Cleared" state (Missing 'to' key)
