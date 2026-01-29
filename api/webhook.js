@@ -24,18 +24,24 @@ export default async function handler(req, res) {
   
   // Suppress all core GitHub metadata fields
   const ignoredFields = [
-    "Status", 
-    "Title", 
-    "Label", 
-    "Labels", 
-    "Assignee", 
-    "Assignees", 
-    "Milestone", 
-    "Milestones",
-    "Reviewer",
-    "Reviewers",
-    "Development"
-  ];
+      "Status", 
+      "Title", 
+      "Label", 
+      "Labels", 
+      "Assignee", 
+      "Assignees", 
+      "Milestone", 
+      "Milestones",
+      "Reviewer",
+      "Reviewers",
+      "Development",
+      "Repository",
+      "Linked pull request",
+      "Linked pull requests",
+      "Tracked by",
+      "Tracks",
+      "Item Type"
+    ];
 
   if (ignoredFields.includes(fieldName)) {
     return res.status(200).send(`Action ignored: ${fieldName} field excluded.`);
