@@ -40,7 +40,7 @@ export default async function handler(req, res) {
 
   // 6. Dispatch to GitHub Actions
   try {
-    await fetch(`https://api.github.com/repos/FinOps-Open-Cost-and-Usage-Spec/test/dispatches`, {
+    await fetch(`https://api.github.com/repos/FinOps-Open-Cost-and-Usage-Spec/FOCUS_Spec/dispatches`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${process.env.GH_PAT}`,
