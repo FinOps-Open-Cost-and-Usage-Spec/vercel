@@ -22,7 +22,7 @@ export default async function handler(req, res) {
   // 3. Extract Field Context
   const fieldName = changes?.field_value?.field_name || "Unknown Field";
   
-  // Suppress core metadata that GitHub already tracks natively
+  // Suppress all core GitHub metadata fields
   const ignoredFields = [
     "Status", 
     "Title", 
@@ -31,7 +31,10 @@ export default async function handler(req, res) {
     "Assignee", 
     "Assignees", 
     "Milestone", 
-    "Milestones"
+    "Milestones",
+    "Reviewer",
+    "Reviewers",
+    "Development"
   ];
 
   if (ignoredFields.includes(fieldName)) {
