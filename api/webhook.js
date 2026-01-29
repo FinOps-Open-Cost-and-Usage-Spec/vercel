@@ -22,8 +22,17 @@ export default async function handler(req, res) {
   // 3. Extract Field Context
   const fieldName = changes?.field_value?.field_name || "Unknown Field";
   
-  // List of fields that we want to ignore
-  const ignoredFields = ["Status", "Title", "Label", "Assignees", "Assignee"];
+  // Suppress core metadata that GitHub already tracks natively
+  const ignoredFields = [
+    "Status", 
+    "Title", 
+    "Label", 
+    "Labels", 
+    "Assignee", 
+    "Assignees", 
+    "Milestone", 
+    "Milestones"
+  ];
 
   if (ignoredFields.includes(fieldName)) {
     return res.status(200).send(`Action ignored: ${fieldName} field excluded.`);
