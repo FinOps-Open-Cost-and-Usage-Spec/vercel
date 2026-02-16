@@ -4,10 +4,12 @@ export default async function handler(req, res) {
   // --- CONFIGURATION ---
   const TARGET_ORG = "FinOps-Open-Cost-and-Usage-Spec"; 
   const TARGET_PROJECT_NUMBER = 5; 
-  const TARGET_FIELD_NAME = "Status"; // The column header
-  const TARGET_STATUS_VALUE = "PR Member Review"; // The value to trigger on
+  const TARGET_FIELD_NAME = "Status"; 
+  const TARGET_STATUS_VALUE = "PR Member Review"; 
+  const TF_STATUS_VALUE = "PR TF Review"; // Secondary column to count
+  const TARGET_VIEW_URL = "https://github.com/orgs/FinOps-Open-Cost-and-Usage-Spec/projects/5/views/14";
 
-  // --- 1. Security (HMAC) ---
+  // --- 1. Security ---
   const signature = req.headers['x-hub-signature-256'];
   const hmac = crypto.createHmac('sha256', process.env.GITHUB_WEBHOOK_SECRET);
   const digest = 'sha256=' + hmac.update(JSON.stringify(req.body)).digest('hex');
@@ -17,28 +19,22 @@ export default async function handler(req, res) {
     return res.status(401).send('Signature mismatch');
   }
 
-  // --- 2. Parse Payload ---
+  // --- 2. Filter Payload ---
   const { action, projects_v2_item, changes, organization } = req.body;
 
-  // A. Quick Org Check
   if (organization?.login !== TARGET_ORG) {
     return res.status(200).send(`Ignored: Org is ${organization?.login}`);
   }
 
-  // B. Event Relevance Check
-  // We only care if an item was edited and has content (is a PR/Issue)
   if (action !== 'edited' || !projects_v2_item?.content_node_id) {
     return res.status(200).send('Ignored: Not a relevant edit.');
   }
 
-  // --- 3. The Logic Check ---
   const fieldName = changes?.field_value?.field_name;
-  
-  // Safely extract the new value (GitHub sends objects for single-select fields)
   const rawTo = changes?.field_value?.to;
   const newValue = (rawTo && typeof rawTo === 'object') ? rawTo.name : String(rawTo || "");
 
-  // Debug Log (View this in Vercel Logs if it doesn't fire)
+  // Debug Log
   console.log(`Field Modified: ${fieldName} -> ${newValue}`);
 
   if (fieldName !== TARGET_FIELD_NAME) {
@@ -49,12 +45,25 @@ export default async function handler(req, res) {
     return res.status(200).send(`Ignored: Status changed to ${newValue}`);
   }
 
-  // --- 4. Fetch Details from GitHub ---
+  // --- 3. Fetch Details AND Counts ---
   try {
     const query = `
       query($contentId: ID!, $projectId: ID!) {
         project: node(id: $projectId) {
-          ... on ProjectV2 { number title }
+          ... on ProjectV2 {
+            number
+            title
+            
+            # Count items in Member Review (alias: memberReviewCount)
+            memberReviewCount: items(first: 0, query: "status:\\"${TARGET_STATUS_VALUE}\\" is:open") {
+              totalCount
+            }
+            
+            # Count items in TF Review (alias: tfReviewCount)
+            tfReviewCount: items(first: 0, query: "status:\\"${TF_STATUS_VALUE}\\" is:open") {
+              totalCount
+            }
+          }
         }
         item: node(id: $contentId) {
           ... on PullRequest {
@@ -92,14 +101,17 @@ export default async function handler(req, res) {
     const project = data?.project;
     const item = data?.item;
 
-    // Verify Board Number matches our Target
     if (project?.number !== TARGET_PROJECT_NUMBER) {
       return res.status(200).send(`Ignored: Board #${project?.number}, wanted #${TARGET_PROJECT_NUMBER}`);
     }
 
     if (!item) return res.status(404).send('Content not found on GitHub');
 
-    // --- 5. Post to Slack ---
+    // Extract Counts
+    const memberCount = project.memberReviewCount.totalCount;
+    const tfCount = project.tfReviewCount.totalCount;
+
+    // --- 4. Post to Slack ---
     const slackRes = await fetch(process.env.SLACK_WEBHOOK_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -125,7 +137,23 @@ export default async function handler(req, res) {
             elements: [
               {
                 type: "mrkdwn",
-                text: `Author: ${item.author.login} | Board: ${project.title}`
+                text: `Author: ${item.author.login}`
+              }
+            ]
+          },
+          {
+            type: "divider"
+          },
+          {
+            type: "context",
+            elements: [
+              {
+                type: "mrkdwn",
+                text: `*Current Queue:* 👤 *${memberCount}* in Member Review  |  🤖 *${tfCount}* in TF Review`
+              },
+              {
+                type: "mrkdwn",
+                text: `See <${TARGET_VIEW_URL}|here> for a list of all PRs`
               }
             ]
           }
