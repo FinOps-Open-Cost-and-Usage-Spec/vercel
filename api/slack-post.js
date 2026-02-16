@@ -6,10 +6,12 @@ export default async function handler(req, res) {
   const TARGET_PROJECT_NUMBER = 5; 
   const TARGET_FIELD_NAME = "Status"; 
   const TARGET_STATUS_VALUE = "PR Member Review"; 
-  const TF_STATUS_VALUE = "PR TF Review"; // Secondary column to count
+  const TF_STATUS_VALUE = "PR TF Review"; 
   const TARGET_VIEW_URL = "https://github.com/orgs/FinOps-Open-Cost-and-Usage-Spec/projects/5/views/14";
 
   // --- 1. Security ---
+  if (!process.env.GITHUB_WEBHOOK_SECRET) return res.status(500).send('Missing Secret');
+
   const signature = req.headers['x-hub-signature-256'];
   const hmac = crypto.createHmac('sha256', process.env.GITHUB_WEBHOOK_SECRET);
   const digest = 'sha256=' + hmac.update(JSON.stringify(req.body)).digest('hex');
@@ -34,7 +36,6 @@ export default async function handler(req, res) {
   const rawTo = changes?.field_value?.to;
   const newValue = (rawTo && typeof rawTo === 'object') ? rawTo.name : String(rawTo || "");
 
-  // Debug Log
   console.log(`Field Modified: ${fieldName} -> ${newValue}`);
 
   if (fieldName !== TARGET_FIELD_NAME) {
@@ -54,13 +55,13 @@ export default async function handler(req, res) {
             number
             title
             
-            # Count items in Member Review (alias: memberReviewCount)
-            memberReviewCount: items(first: 0, query: "status:\\"${TARGET_STATUS_VALUE}\\" is:open") {
+            # Count PRs only (is:pr) in Member Review
+            memberReviewCount: items(first: 0, query: "status:\\"${TARGET_STATUS_VALUE}\\" is:open is:pr") {
               totalCount
             }
             
-            # Count items in TF Review (alias: tfReviewCount)
-            tfReviewCount: items(first: 0, query: "status:\\"${TF_STATUS_VALUE}\\" is:open") {
+            # Count PRs only (is:pr) in TF Review
+            tfReviewCount: items(first: 0, query: "status:\\"${TF_STATUS_VALUE}\\" is:open is:pr") {
               totalCount
             }
           }
@@ -107,7 +108,6 @@ export default async function handler(req, res) {
 
     if (!item) return res.status(404).send('Content not found on GitHub');
 
-    // Extract Counts
     const memberCount = project.memberReviewCount.totalCount;
     const tfCount = project.tfReviewCount.totalCount;
 
@@ -149,11 +149,8 @@ export default async function handler(req, res) {
             elements: [
               {
                 type: "mrkdwn",
-                text: `*Current Queue:* 👤 *${memberCount}* in Member Review  |  🤖 *${tfCount}* in TF Review`
-              },
-              {
-                type: "mrkdwn",
-                text: `See <${TARGET_VIEW_URL}|here> for a list of all PRs`
+                // All on one line now, separated by pipes
+                text: `*Current Queue:* 👤 *${memberCount}* in Member Review  |  🤖 *${tfCount}* in TF Review  |  See <${TARGET_VIEW_URL}|here> for a list of all PRs`
               }
             ]
           }
