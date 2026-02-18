@@ -28,10 +28,17 @@ export default async function handler(req, res) {
     return res.status(200).send(`Ignored: Org is ${organization?.login}`);
   }
 
+  // A. Basic Validations
   if (action !== 'edited' || !projects_v2_item?.content_node_id) {
     return res.status(200).send('Ignored: Not a relevant edit.');
   }
 
+  // B. TYPE CHECK (New!) - Stop if it's not a PR
+  if (projects_v2_item?.content_type !== 'PullRequest') {
+    return res.status(200).send(`Ignored: Item type is ${projects_v2_item?.content_type}`);
+  }
+
+  // C. Field Check
   const fieldName = changes?.field_value?.field_name;
   const rawTo = changes?.field_value?.to;
   const newValue = (rawTo && typeof rawTo === 'object') ? rawTo.name : String(rawTo || "");
@@ -73,12 +80,7 @@ export default async function handler(req, res) {
             url
             author { login }
           }
-          ... on Issue {
-            number
-            title
-            url
-            author { login }
-          }
+          # Removed "... on Issue" since we filtered them out above
         }
       }
     `;
@@ -149,7 +151,6 @@ export default async function handler(req, res) {
             elements: [
               {
                 type: "mrkdwn",
-                // All on one line now, separated by pipes
                 text: `*Current Queue:* 👤 *${memberCount}* in Member Review  |  🤖 *${tfCount}* in TF Review  |  See <${TARGET_VIEW_URL}|here> for a list of all PRs`
               }
             ]
